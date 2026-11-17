@@ -803,8 +803,8 @@ const drawSetup = ($: EngineInterface, el: ReturnType<EngineInterface['ui']['res
   return [...(found.before ? [md(base, found.before, 'before')] : []), md(base, found.parts.head, 'head'), ...picks, md(base, found.parts.tail, 'tail')]
 }
 
-const hintsFor = (style: Style, latex: LatexSession, nth: number, pane?: number): string[] => [
-  ...(style.diagramHints ? [HINT, FIGURE_HINT, ...(pane !== undefined && pane < NARROW_PANE ? [narrowHint(pane)] : []), ...(latex.ready && !latex.stopped ? [LATEX_HINT] : [])] : []),
+const hintsFor = (style: Style, latex: LatexSession, nth: number, pane?: number, diagrams = true): string[] => [
+  ...(style.diagramHints && diagrams ? [HINT, FIGURE_HINT, ...(pane !== undefined && pane < NARROW_PANE ? [narrowHint(pane)] : []), ...(latex.ready && !latex.stopped ? [LATEX_HINT] : [])] : []),
   ...(style.issueHint && nth % 10 === 0 ? [ISSUE_HINT] : []),
 ]
 
@@ -821,6 +821,9 @@ export const register: Register = (on, options) => {
   const parseCached = (text: string, cache = parsed, limit?: number) => remember(cache, text, () => parse(text, { numbers: style.highlightNumbers, paths: style.highlightPaths }), limit)
   const shared = new Map<string, ReturnType<typeof parse>>()
   let prompts = 0
+  // `diagramHintsWhen: once`: the note rides the first prompt and the first
+  // after a compaction of the main conversation, which drops it from history
+  let hintDue = true
   let pane: number | undefined
   const latex: LatexSession = { style, color: ratexColor(style.theme.diagramText ?? style.theme.codeText ?? '#808080'), pending: new Set(), wanted: new Set(), batch: [], queue: Promise.resolve() }
   const picked: Picked = { theme: firstTheme, options, latex }
@@ -984,6 +987,12 @@ export const register: Register = (on, options) => {
     }
   })
 
+  on('session.compact', async ($, e, next) => {
+    const result = await next(e)
+    if (e.agentId === undefined && e.trigger !== 'precompute' && !('skip' in (result ?? {}))) hintDue = true
+    return result
+  })
+
   on('prompt.submit', async ($, e, next) => {
     await markUnread($, style, e, blinker)
     if (style.clock !== 'off' && (e.origin.kind === 'composer' || e.origin.kind === 'bridge')) {
@@ -993,7 +1002,9 @@ export const register: Register = (on, options) => {
     await probe($, style, probes)
     if (!takesHint(e.origin) || (style.surfaces && !(await drawsWhereAsked($, e.origin, style.surfaces)))) return next(e)
     if (style.diagramHints) void latexEngine($, latex)
-    const hints = hintsFor(style, latex, prompts++, pane)
+    const diagrams = style.diagramHintsWhen === 'every' || hintDue
+    if (style.diagramHints) hintDue = false
+    const hints = hintsFor(style, latex, prompts++, pane, diagrams)
     return hints.length ? next({ ...e, context: [...(e.context ?? []), ...hints] }) : next(e)
   })
 

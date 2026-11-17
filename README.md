@@ -466,6 +466,7 @@ Options sit under `options`, keyed by the plugin's install name. Project setting
 | `textCopyButtons` | `true`, `false` | `true` |
 | `sectionCopyButtons` | `true`, `false` | `false` |
 | `diagramHints` | `true`, `false` | `true` |
+| `diagramHintsWhen` | `every` (each prompt), `once` (the first prompt and the first after a compaction) | `every` |
 | `issueHint` | `true`, `false` | `true` |
 | `rtl` | `auto`, a terminal (`warp`, `kitty`, `apple-terminal`, `iterm`, `ghostty`, `wezterm`, `vscode`, `alacritty`, `windows-terminal`, `gnome`, `konsole`), `off` | `auto` |
 | `mermaid` | `true`, `false` | `true` |
